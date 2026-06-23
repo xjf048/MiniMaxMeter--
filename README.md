@@ -11,9 +11,13 @@ macOS 菜单栏小工具，实时监控 [platform.minimaxi.com](https://platform
 
 ## 截图 / Screenshots
 
-| 菜单栏 | 弹出卡片（含设置区）|
+| 菜单栏 | 弹出卡片（含设置区 + 趋势图）|
 |---|---|
 | ![menubar](docs/screenshot-menubar.png) | ![popover](docs/screenshot-popover.png) |
+
+**用量趋势 sparkline 特写**：
+
+![sparkline](docs/screenshot-sparkline.png)
 
 > 第一次贡献？上传截图到 `docs/` 目录并替换上面几行即可。
 
