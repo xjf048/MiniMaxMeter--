@@ -19,6 +19,7 @@ final class UsageStore: ObservableObject {
     private var lastUsedPercent: [String: Int] = [:]
     private var lastNotified: [String: Set<Int>] = [:]
     private var lastResetAt: [String: Date] = [:]
+    private var lastCookieExpiryNotified: [String: Set<Int>] = [:]
 
     private static let thresholdsKey = "MiniMaxMeter.enabledThresholds.v1"
 
@@ -29,10 +30,12 @@ final class UsageStore: ObservableObject {
         }
         start()
         scheduleSummary()
+        scheduleCookieExpiryCheck()
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 100_000_000)
             await Notifier.shared.requestPermission()
             await refreshSummary()
+            checkCookieExpirations()
             await observeAccountChanges()
         }
     }
@@ -143,6 +146,35 @@ final class UsageStore: ObservableObject {
         summaryTimer?.invalidate()
         summaryTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
             Task { await self?.refreshSummary() }
+        }
+    }
+
+    /// 每小时检查一次 cookie 过期
+    private func scheduleCookieExpiryCheck() {
+        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkCookieExpirations() }
+        }
+    }
+
+    /// 检查所有账户 cookie 过期时间，提前 3 / 1 / 0 天各弹一次通知
+    func checkCookieExpirations() {
+        for acc in accountStore.accounts {
+            guard let expiresAt = acc.cookieExpiresAt else { continue }
+            let daysLeft = JWT.daysUntilExpiration(expiresAt)
+            var notified = lastCookieExpiryNotified[acc.id] ?? []
+
+            for threshold in [0, 1, 3] {
+                if daysLeft <= threshold && daysLeft >= 0 && !notified.contains(threshold) {
+                    let when = threshold == 0 ? "今天" : "\(threshold) 天后"
+                    Notifier.shared.notify(
+                        title: "Cookie 即将过期",
+                        body: "「\(acc.displayName)」\(when)过期，请重新登录 minimaxi 复制新 Cookie",
+                        identifier: "MiniMaxMeter.cookieExpiry.\(acc.id).\(threshold)"
+                    )
+                    notified.insert(threshold)
+                }
+            }
+            lastCookieExpiryNotified[acc.id] = notified
         }
     }
 

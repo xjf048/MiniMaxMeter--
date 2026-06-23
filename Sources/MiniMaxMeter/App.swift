@@ -5,6 +5,7 @@ import AppKit
 struct MiniMaxMeterApp: App {
     @StateObject private var accountStore: AccountStore
     @StateObject private var store: UsageStore
+    @AppStorage("MiniMaxMeter.appearance") private var appearance: String = "system"   // system / light / dark
 
     init() {
         Self.enforceSingleInstance()
@@ -39,9 +40,18 @@ struct MiniMaxMeterApp: App {
             PopoverView()
                 .environmentObject(accountStore)
                 .environmentObject(store)
+                .preferredColorScheme(colorScheme)
         } label: {
             MenuBarLabel(store: store, accountStore: accountStore)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var colorScheme: ColorScheme? {
+        switch appearance {
+        case "light": return .light
+        case "dark":  return .dark
+        default:      return nil   // 跟随系统
+        }
     }
 }

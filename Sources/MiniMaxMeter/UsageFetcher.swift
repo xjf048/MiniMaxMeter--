@@ -27,6 +27,28 @@ actor UsageFetcher {
     }
 
     func fetch() async throws -> UsageSnapshot {
+        let maxRetries = 3
+        var lastError: Error = FetchError.badStatus(-1)
+
+        for attempt in 0..<maxRetries {
+            do {
+                return try await fetchOnce()
+            } catch FetchError.unauthorized {
+                // 401/403 不重试
+                throw FetchError.unauthorized
+            } catch {
+                lastError = error
+                if attempt < maxRetries - 1 {
+                    // 指数退避：1s / 3s / 9s
+                    let delaySec = pow(3.0, Double(attempt))
+                    try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
+                }
+            }
+        }
+        throw lastError
+    }
+
+    private func fetchOnce() async throws -> UsageSnapshot {
         var req = URLRequest(url: endpoint)
         req.httpMethod = "GET"
         req.setValue(cookie, forHTTPHeaderField: "Cookie")
@@ -36,7 +58,6 @@ actor UsageFetcher {
         req.setValue("zh-CN,zh;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
         req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
                      forHTTPHeaderField: "User-Agent")
-        // 从 cookie 自动提取 x-group-id（格式: minimax_group_id_v2=数字）
         if let groupId = Self.extractGroupId(from: cookie) {
             req.setValue(groupId, forHTTPHeaderField: "X-Group-Id")
         }

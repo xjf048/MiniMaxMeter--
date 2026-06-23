@@ -49,6 +49,26 @@ actor UsageSummaryFetcher {
     }
 
     func fetch() async throws -> [DailyUsage] {
+        let maxRetries = 3
+        var lastError: Error = FetchError.badStatus(-1)
+
+        for attempt in 0..<maxRetries {
+            do {
+                return try await fetchOnce()
+            } catch FetchError.unauthorized {
+                throw FetchError.unauthorized
+            } catch {
+                lastError = error
+                if attempt < maxRetries - 1 {
+                    let delaySec = pow(3.0, Double(attempt))
+                    try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
+                }
+            }
+        }
+        throw lastError
+    }
+
+    private func fetchOnce() async throws -> [DailyUsage] {
         var req = URLRequest(url: endpoint)
         req.httpMethod = "GET"
         req.setValue(cookie, forHTTPHeaderField: "Cookie")

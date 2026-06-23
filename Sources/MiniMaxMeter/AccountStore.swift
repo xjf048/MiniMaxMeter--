@@ -31,7 +31,7 @@ final class AccountStore: ObservableObject {
         if name?.isEmpty ?? true {
             name = defaultName(for: groupId)
         }
-        let acc = Account(id: id, displayName: name!, groupId: groupId, createdAt: Date())
+        let acc = Account(id: id, displayName: name!, groupId: groupId, createdAt: Date(), cookieExpiresAt: JWT.cookieExpiration(trimmed))
         Keychain.saveCookie(trimmed, for: id)
         accounts.append(acc)
         if activeAccountId == nil { activeAccountId = id }

@@ -14,6 +14,7 @@ struct PopoverView: View {
     @State private var notifPermissionGranted: Bool = false
 
     @State private var launchAtLogin: Bool = LaunchAtLogin.isEnabled
+    @AppStorage("MiniMaxMeter.appearance") private var appearance: String = "system"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -106,6 +107,18 @@ struct PopoverView: View {
                 } catch {
                     launchAtLogin = LaunchAtLogin.isEnabled  // 回滚
                 }
+            }
+
+            // 外观
+            HStack {
+                Text("外观").font(.caption.bold())
+                Picker("外观", selection: $appearance) {
+                    Text("跟随系统").tag("system")
+                    Text("浅色").tag("light")
+                    Text("深色").tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.small)
             }
 
             // 阈值提醒
@@ -302,13 +315,31 @@ struct AccountRow: View {
     let onActivate: () -> Void
     let onDelete: () -> Void
 
+    private func expiryBadge(for acc: Account) -> (text: String, color: Color)? {
+        guard let exp = acc.cookieExpiresAt else { return nil }
+        let days = JWT.daysUntilExpiration(exp)
+        if days < 0 { return ("⏰ 已过期", .red) }
+        if days == 0 { return ("⏰ 今天过期", .red) }
+        if days == 1 { return ("⏰ 明天过期", .orange) }
+        if days <= 3 { return ("⏰ \(days) 天后过期", .orange) }
+        if days <= 7 { return ("⏰ \(days) 天", .secondary) }
+        return nil
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(isActive ? Color.green : Color.secondary)
                 .font(.caption)
             VStack(alignment: .leading, spacing: 1) {
-                Text(account.displayName).font(.caption)
+                HStack(spacing: 4) {
+                    Text(account.displayName).font(.caption)
+                    if let badge = expiryBadge(for: account) {
+                        Text(badge.text)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(badge.color)
+                    }
+                }
                 Text("组: \(account.groupId)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

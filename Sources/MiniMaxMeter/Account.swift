@@ -7,6 +7,7 @@ struct Account: Identifiable, Codable, Equatable, Hashable {
     var displayName: String  // "工作" / "个人" / 用户自定义
     var groupId: String      // X-Group-Id（从 cookie 提取）
     let createdAt: Date
+    var cookieExpiresAt: Date?  // 从 _token JWT 的 exp 字段提取
 
     var keychainKey: String { "account:\(id)" }
 }
