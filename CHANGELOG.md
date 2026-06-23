@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-23
+
+### ✨ 新增
+
+- **多账户支持**（v2.1）：保存多个 minimaxi 账号 Cookie，一键切换
+  - 设置面板「账户」section：列表、添加、切换、删除
+  - 菜单栏 label 多账户时显示前缀：`[工作] 5h 25% / 周 18%`
+  - **自动迁移**：老用户单 cookie 自动迁移到新格式，零配置升级
+- **限额阈值通知**（v2.3）：5h / 周限额跨过 50/75/90% 时弹 macOS 通知
+  - 首次启动请求通知权限
+  - 每个窗口每个阈值只通知一次（避免刷屏）
+  - 窗口重置时清通知状态（新窗口重新触发）
+  - 设置区可配置启用哪些阈值
+- **开机自启**（v2.4）：用户登录 Mac 后自动启动
+  - macOS 13+ 官方 `SMAppService.mainApp` API
+  - 设置面板 toggle，状态实时同步
+
+### 🔧 重构
+- 拆分 `Keychain`：单 cookie → per-account key（`account:<uuid>`）
+- `AccountStore` 独立管理账户列表 + 活跃账户（UserDefaults 持久化）
+- `UsageStore` 改为接受 `AccountStore` 注入，切换账户时自动重建 fetcher
+
 ## [1.1.1] - 2026-06-23
 
 ### 🐛 Bug 修复

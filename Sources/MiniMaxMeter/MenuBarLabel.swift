@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// 永远显示在菜单栏的精简 label
+/// 多账户时显示当前账户名前缀：`[工作] 5h 25% / 周 18%`
 struct MenuBarLabel: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject var accountStore: AccountStore
 
     var body: some View {
         HStack(spacing: 4) {
@@ -18,11 +20,15 @@ struct MenuBarLabel: View {
         }
     }
 
-    /// 例：`5h 25% / 周 18%`
     private var labelText: String {
         guard let s = store.snapshot else { return "—" }
         let h = s.fiveHour.usedPercent
         let w = s.weekly.usedPercent
-        return "5h \(h)% / 周 \(w)%"
+        let stats = "5h \(h)% / 周 \(w)%"
+        // 多账户时加账户名前缀
+        if accountStore.accounts.count > 1, let acc = accountStore.activeAccount {
+            return "[\(acc.displayName)] \(stats)"
+        }
+        return stats
     }
 }

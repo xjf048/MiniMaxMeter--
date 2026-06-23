@@ -2,11 +2,18 @@ import SwiftUI
 
 struct PopoverView: View {
     @EnvironmentObject var store: UsageStore
+    @EnvironmentObject var accountStore: AccountStore
+
     @State private var now = Date()
     @State private var tickTimer: Timer?
     @State private var showSettings: Bool = false
-    @State private var cookieDraft: String = ""
-    @State private var savedHint: Bool = false
+    @State private var showAddForm: Bool = false
+    @State private var newCookie: String = ""
+    @State private var newName: String = ""
+    @State private var addError: String?
+    @State private var notifPermissionGranted: Bool = false
+
+    @State private var launchAtLogin: Bool = LaunchAtLogin.isEnabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -35,10 +42,14 @@ struct PopoverView: View {
             toolbar
         }
         .padding(16)
-        .frame(width: 360)
+        .frame(width: 380)
         .onAppear {
             startTicking()
-            if !store.hasCookie { showSettings = true }   // 首次没 Cookie 自动展开
+            if !store.hasCookie { showSettings = true }   // 首次没账户自动展开
+            Task { @MainActor in
+                await Notifier.shared.refreshPermissionStatus()
+                notifPermissionGranted = Notifier.shared.permissionGranted
+            }
         }
         .onDisappear { stopTicking() }
     }
@@ -47,8 +58,7 @@ struct PopoverView: View {
 
     private var header: some View {
         HStack {
-            Text("MiniMax Token")
-                .font(.headline)
+            Text("MiniMax Token").font(.headline)
             Spacer()
             if let s = store.snapshot {
                 Text("更新于 \(s.fetchedAt, style: .time)")
@@ -62,9 +72,8 @@ struct PopoverView: View {
 
     private var placeholder: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("还没有数据")
-                .font(.subheadline.bold())
-            Text("展开「设置」粘贴 platform.minimaxi.com 的 cookie 字符串")
+            Text("还没有数据").font(.subheadline.bold())
+            Text("展开「设置」→ 添加 Cookie 字符串")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -74,38 +83,32 @@ struct PopoverView: View {
     // MARK: - Settings (inline)
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Cookie").font(.caption.bold())
-                Spacer()
-                if store.hasCookie {
-                    Label("已配置", systemImage: "checkmark.circle.fill")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.green)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            // 账户列表
+            accountListSection
+
+            // 开机自启
+            Toggle(isOn: $launchAtLogin) {
+                Label("开机自动启动", systemImage: "powerplug.fill")
+                    .font(.caption)
             }
-            SecureField("粘贴 cookie 值（不含 `cookie:` 前缀）", text: $cookieDraft)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Button("保存") {
-                    store.setCookie(cookieDraft)
-                    cookieDraft = ""
-                    savedHint = true
-                    Task { try? await Task.sleep(nanoseconds: 2_000_000_000); savedHint = false }
-                }
-                .disabled(cookieDraft.isEmpty)
-                Button("清除") {
-                    store.clearCookie()
-                    cookieDraft = ""
-                }
-                .foregroundStyle(.red)
-                Spacer()
-                if savedHint {
-                    Text("已保存 ✓").font(.caption).foregroundStyle(.green)
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .onChange(of: launchAtLogin) { newValue in
+                do {
+                    try LaunchAtLogin.setEnabled(newValue)
+                } catch {
+                    launchAtLogin = LaunchAtLogin.isEnabled  // 回滚
                 }
             }
 
-            Text("刷新频率").font(.caption.bold()).padding(.top, 4)
+            // 阈值提醒
+            thresholdSection
+
+            Divider()
+
+            // 刷新频率
+            Text("刷新频率").font(.caption.bold())
             Picker("刷新频率", selection: $store.refreshInterval) {
                 Text("30 秒").tag(TimeInterval(30))
                 Text("1 分钟").tag(TimeInterval(60))
@@ -115,6 +118,119 @@ struct PopoverView: View {
             .pickerStyle(.segmented)
             .onChange(of: store.refreshInterval) { _ in store.restart() }
         }
+    }
+
+    private var accountListSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("账户").font(.caption.bold())
+                Spacer()
+                if !showAddForm {
+                    Button {
+                        showAddForm = true
+                    } label: {
+                        Label("添加", systemImage: "plus")
+                            .labelStyle(.titleAndIcon)
+                            .font(.caption)
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            if accountStore.accounts.isEmpty {
+                Text("还没有账户，请添加").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(accountStore.accounts) { acc in
+                    AccountRow(
+                        account: acc,
+                        isActive: acc.id == accountStore.activeAccountId,
+                        onActivate: { store.switchActiveAccount(acc.id) },
+                        onDelete: {
+                            store.removeAccount(acc.id)
+                        }
+                    )
+                }
+            }
+
+            if showAddForm {
+                addAccountForm
+            }
+        }
+    }
+
+    private var addAccountForm: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("账户名（选填，如「工作」「个人」）", text: $newName)
+                .textFieldStyle(.roundedBorder)
+            SecureField("粘贴 cookie 值（不含 cookie: 前缀）", text: $newCookie)
+                .textFieldStyle(.roundedBorder)
+            if let err = addError {
+                Text(err).font(.caption).foregroundStyle(.red)
+            }
+            HStack {
+                Button("保存为新账户") { commitNewAccount() }
+                    .disabled(newCookie.isEmpty)
+                Button("取消") {
+                    showAddForm = false
+                    newCookie = ""
+                    newName = ""
+                    addError = nil
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(6)
+    }
+
+    private func commitNewAccount() {
+        let result = store.addAccount(cookie: newCookie, displayName: newName.isEmpty ? nil : newName)
+        if result == nil {
+            addError = "Cookie 无效（找不到 minimax_group_id_v2）"
+            return
+        }
+        addError = nil
+        newCookie = ""
+        newName = ""
+        showAddForm = false
+    }
+
+    // MARK: - 阈值提醒 UI
+
+    private var thresholdSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("限额阈值提醒").font(.caption.bold())
+            HStack(spacing: 12) {
+                ForEach([50, 75, 90], id: \.self) { t in
+                    Toggle(isOn: thresholdBinding(t)) {
+                        Text("\(t)%").font(.caption.monospacedDigit())
+                    }
+                    .toggleStyle(.checkbox)
+                    .controlSize(.mini)
+                }
+            }
+            if !notifPermissionGranted {
+                Button {
+                    Notifier.openSystemSettings()
+                } label: {
+                    Label("通知权限未开启，点这里去系统设置", systemImage: "bell.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func thresholdBinding(_ t: Int) -> Binding<Bool> {
+        Binding(
+            get: { store.enabledThresholds.contains(t) },
+            set: { isOn in
+                if isOn { store.enabledThresholds.insert(t) }
+                else    { store.enabledThresholds.remove(t) }
+            }
+        )
     }
 
     // MARK: - Toolbar
@@ -172,6 +288,46 @@ struct PopoverView: View {
     }
 }
 
+// MARK: - AccountRow
+
+struct AccountRow: View {
+    let account: Account
+    let isActive: Bool
+    let onActivate: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isActive ? Color.green : Color.secondary)
+                .font(.caption)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(account.displayName).font(.caption)
+                Text("组: \(account.groupId)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if !isActive {
+                Button("切换", action: onActivate)
+                    .controlSize(.mini)
+                    .buttonStyle(.borderless)
+            }
+            Button {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.caption2)
+            }
+            .controlSize(.mini)
+            .buttonStyle(.borderless)
+            .foregroundStyle(.red)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - QuotaRow
 
 struct QuotaRow: View {
@@ -194,10 +350,8 @@ struct QuotaRow: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    // 灰色背景 = 剩余额度（剩余多少就空多少）
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.secondary.opacity(0.15))
-                    // 彩色前景 = 已用部分（从左往右，已用多少就填多少）
                     RoundedRectangle(cornerRadius: 4)
                         .fill(color)
                         .frame(width: max(2, geo.size.width * quota.usedFraction))
