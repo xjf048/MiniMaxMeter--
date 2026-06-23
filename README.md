@@ -19,6 +19,10 @@ macOS 菜单栏小工具，实时监控 [platform.minimaxi.com](https://platform
 
 ![sparkline](docs/screenshot-sparkline.png)
 
+**怎么从 DevTools 复制 Cookie 给 miniMaxMeter 用**：
+
+![how-to-copy-cookie](docs/screenshot-how-to-copy-cookie.png)
+
 > 第一次贡献？上传截图到 `docs/` 目录并替换上面几行即可。
 
 ## 特性 / Features
@@ -133,13 +137,13 @@ curl -s -H "Cookie: $COOKIE" -H "X-Group-Id: $(echo $COOKIE | grep -oE 'minimax_
 如果想改代码后跑起来看效果：
 
 ```bash
-swift run --package-path /Users/a1/AI-Hub/projects/MiniMaxMeter-迷你魔用量监控
+swift run --package-path /Users/a1/AI-Hub/projects/MiniMaxMeter
 ```
 
 或：
 
 ```bash
-cd ~/AI-Hub/projects/MiniMaxMeter-迷你魔用量监控 && swift run
+cd ~/AI-Hub/projects/MiniMaxMeter && swift run
 ```
 
 ## 配置 Cookie

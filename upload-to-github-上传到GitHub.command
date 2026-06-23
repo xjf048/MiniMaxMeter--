@@ -37,8 +37,8 @@ fi
 
 # 询问仓库 URL
 echo "请输入 GitHub 仓库 URL："
-echo "  SSH 格式:   git@github.com:用户名/MiniMaxMeter-迷你魔用量监控.git"
-echo "  HTTPS 格式: https://github.com/用户名/MiniMaxMeter-迷你魔用量监控.git"
+echo "  SSH 格式:   git@github.com:用户名/MiniMaxMeter.git"
+echo "  HTTPS 格式: https://github.com/用户名/MiniMaxMeter.git"
 echo ""
 read -p "仓库 URL: " REPO_URL
 echo ""
