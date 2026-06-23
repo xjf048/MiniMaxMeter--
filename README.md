@@ -75,8 +75,44 @@ macOS 菜单栏小工具，实时监控 [platform.minimaxi.com](https://platform
 - 等 30 秒编译完，桌面会出现「MiniMaxMeter」图标
 
 **第二步**：双击桌面上的 **`MiniMaxMeter`** 启动
-- 菜单栏右上角出现 `5h 0% / 周 0%`
+- 菜单栏右上角出现 `5h X% / 周 X%`（X=真实数字，说明 Cookie 已生效）
 - **点菜单栏文字** → 弹出小卡片 → 底部 **「⚙ 设置」** → 填 Cookie → 保存
+
+## 故障排查 / Troubleshooting
+
+### 菜单栏显示 `5h 0% / 周 0%` 一直不变
+
+按下面顺序排查：
+
+1. **点「↻ 刷新」按钮**（在弹出卡片底部）—— 大多数情况是首次启动时机太早导致自动 refresh 没赶上
+2. **检查 Cookie 是否还在 Keychain**：
+   ```bash
+   security find-generic-password -s com.MiniMax.MiniMaxMeter -a session-cookie
+   ```
+   - 看到条目 → Cookie 还在，看下面「接口失败」
+   - 没看到 → 重新粘一次 Cookie 保存
+3. **看 popover 里的红色错误提示**：
+   - `Cookie 过期，请重新登录` → 浏览器重新登录 minimaxi 复制新 Cookie
+   - `HTTP 401` / `HTTP 403` → 同上，Cookie 失效
+   - `解码失败` → 接口改版了，提 Issue
+
+### 验证 Cookie 是否还有效
+
+终端跑：
+
+```bash
+COOKIE=$(security find-generic-password -s com.MiniMax.MiniMaxMeter -a session-cookie -w)
+curl -s -H "Cookie: $COOKIE" -H "X-Group-Id: $(echo $COOKIE | grep -oE 'minimax_group_id_v2=[0-9]+' | cut -d= -f2)" \
+  https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains | head -c 200
+```
+
+- 返回 JSON 含 `model_remains` → Cookie 有效
+- 返回 `cookie is missing` → Cookie 已失效，重新登录
+
+### 启动后没数据但点刷新就好
+
+- ✅ **正常**：首次启动时机太早（Mac 刚开机、网络还没就绪）。手动点「↻ 刷新」立刻拉一次。
+- ✅ **新版已修**：`UsageStore.init()` 自动调用 `start()`，启动后 1 秒内自动拉数据（v1.1.1+）
 
 以后每次想用，**双击桌面图标**就行（不用碰终端）。
 

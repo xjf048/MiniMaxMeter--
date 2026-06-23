@@ -10,6 +10,11 @@ final class UsageStore: ObservableObject {
     private var fetcher: UsageFetcher?
     private var timer: Timer?
 
+    init() {
+        // 初始化时立即开始定时刷新（之前 bug：start() 从未被调用，所以菜单栏永远 0%）
+        start()
+    }
+
     var hasCookie: Bool { Keychain.loadCookie() != nil }
 
     /// 5h 限额颜色
