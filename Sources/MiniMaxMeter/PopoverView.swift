@@ -322,12 +322,18 @@ struct AccountRow: View {
     private func expiryBadge(for acc: Account) -> (text: String, color: Color)? {
         guard let exp = acc.cookieExpiresAt else { return nil }
         let days = JWT.daysUntilExpiration(exp)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M月d日"
+        formatter.locale = Locale(identifier: "zh_CN")
+        let dateStr = formatter.string(from: exp)
+
         if days < 0 { return ("⏰ 已过期", .red) }
         if days == 0 { return ("⏰ 今天过期", .red) }
         if days == 1 { return ("⏰ 明天过期", .orange) }
-        if days <= 3 { return ("⏰ \(days) 天后过期", .orange) }
-        if days <= 7 { return ("⏰ \(days) 天", .secondary) }
-        return nil
+        if days <= 3 { return ("⏰ \(days) 天后", .orange) }
+        if days <= 14 { return ("📅 \(dateStr)（\(days) 天）", .secondary) }
+        // 始终显示到期日（> 14 天也显示），低权重让用户知道大致什么时候过期
+        return ("📅 \(dateStr)", .secondary)
     }
 
     var body: some View {
